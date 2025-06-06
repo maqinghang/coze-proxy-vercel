@@ -13,9 +13,9 @@ module.exports = async function handler(req, res) {
     const resp = await axios.post('https://api.coze.cn/v3/chat', {
       bot_id,
       user_id,
-      stream: false,
+      stream: true,
       auto_save_history: true,
-      additional_messages: [{ role: 'user', content: text }]
+      additional_messages: [{ role: 'user', content: text, content_type: 'text' }]
     }, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -23,21 +23,10 @@ module.exports = async function handler(req, res) {
       }
     });
 
-    const convId = resp.data?.data?.conversation_id;
-    if (!convId) return res.status(500).json({ error: 'No conversation_id' });
+    const reply = resp.data?.data?.messages?.find(m => m.role === 'assistant')?.content;
+    if (reply) return res.json({ reply });
 
-    for (let i = 0; i < 10; i++) {
-      await new Promise(r => setTimeout(r, 800));
-      const poll = await axios.get(`https://api.coze.cn/v3/messages?conversation_id=${convId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const reply = poll.data?.data?.find(msg => msg.role === 'assistant');
-      if (reply?.content) {
-        return res.json({ reply: reply.content });
-      }
-    }
-
-    return res.status(504).json({ error: 'Timeout waiting for reply' });
+    return res.status(500).json({ error: 'AI 未返回回复内容' });
   } catch (e) {
     return res.status(500).json({ error: e.message || 'Unknown error' });
   }
